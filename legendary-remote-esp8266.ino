@@ -1,10 +1,11 @@
 #include <ESP8266WiFi.h>
 #include <ESPPubSubClientWrapper.h>
-#include <functional>
+
+#include "route.h"
 
 #include "config.h"
 
-typedef std::function<void*(char* topic, byte* payload, unsigned int length)> Callback;
+
 
 ESPPubSubClientWrapper client(MQTT_SERVER);
 
@@ -38,6 +39,10 @@ void setup() {
   client.on("lightOff", [](char* topic, byte* payload, unsigned int length) {digitalWrite(LED_BUILTIN, HIGH);});
   client.on("lightOn", [](char* topic, byte* payload, unsigned int length) {digitalWrite(LED_BUILTIN, LOW);});
   client.on("disconnect", [](char* topic, byte* payload, unsigned int length) {client.disconnect();});
+  client.on("light", toJson([](char* topic, auto payload) {
+    Serial.print("light: ");
+    Serial.println((String)payload["msg"]);
+  }));
   client.subscribe("inTopic");
 
 
