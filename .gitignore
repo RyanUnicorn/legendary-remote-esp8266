@@ -4,3 +4,5 @@
 # vscode-arduino extension
 bin
 
+# configs
+config.h
