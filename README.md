@@ -15,4 +15,5 @@ add this line to `File > Preferences > Additional boards manager URLs`
 
 - Arduinojson 6.21.3
 - IRremoteESP8266 2.8.6
-- MQTT 2.5.1
+- PubSubClient 2.8.0
+- ESPPubSubClientWrapper 1.0.2
