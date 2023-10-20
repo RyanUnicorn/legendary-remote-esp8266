@@ -4,6 +4,7 @@
 #include <IRtext.h>
 #include <IRutils.h>
 #include <IRsend.h>
+#include <ir_Daikin.h>
 
 const uint16_t kIrLed = 4;  // ESP8266 GPIO pin to use. Recommended: 4 (D2).
 
@@ -108,11 +109,11 @@ void irInit() {
 
   irsend.begin();
 
-  OTAinit();  // setup OTA handlers and show IP
+  // OTAinit();  // setup OTA handlers and show IP
 #if DECODE_HASH
   // Ignore messages with less than minimum on or off pulses.
   irrecv.setUnknownThreshold(kMinUnknownSize);
 #endif  // DECODE_HASH
   irrecv.setTolerance(kTolerancePercentage);  // Override the default tolerance.
-  irrecv.enableIRIn();  // Start the receiver
+  irrecv.disableIRIn();  // Start the receiver
 }

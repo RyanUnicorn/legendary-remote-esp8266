@@ -8,6 +8,7 @@
 #include "config.h"
 
 ESPPubSubClientWrapper client(MQTT_SERVER);
+String MAC_ADDR;
 
 void callback(char* topic, byte* payload, unsigned int length) {
   Serial.println(topic);
@@ -38,26 +39,80 @@ void setup() {
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   Serial.print("Connected ");
   Serial.println(WIFI_SSID);
+  MAC_ADDR = WiFi.macAddress();
+  MAC_ADDR.replace(":", "");
+  Serial.print(MAC_ADDR);
 
   /**
    * MQTT
   */
+  StaticJsonDocument<256> doc;
+  doc["ID"] = MAC_ADDR;
+
+  char buf[256];
+  serializeJson(doc, buf, 256);
+
   client.setCallback(callback);
   client.onConnect(connectSuccess);
   client.setBufferSize(IR_MSG_BUFFER_SIZE);
+  // change the topic to pre defined micro
   client.on("lightOff", [](char* topic, byte* payload, unsigned int length) {digitalWrite(LED_BUILTIN, HIGH);});
   client.on("lightOn", [](char* topic, byte* payload, unsigned int length) {digitalWrite(LED_BUILTIN, LOW);});
+  client.on(("dump/" + MAC_ADDR + "/start").c_str(), [](char* topic, byte* payload, unsigned int length) {
+    irrecv.enableIRIn();
+  });
+  client.on(("dump/" + MAC_ADDR + "/stop").c_str(), [](char* topic, byte* payload, unsigned int length) {
+    irrecv.disableIRIn();
+  });
+  client.on("dev/discover", [&](char* topic, byte* payload, unsigned int length) {
+    client.publish("dev", buf);
+  });
+  
+  client.on(("sendraw/" + MAC_ADDR).c_str(), toJson([](char* topic, auto payload) {
+
+    JsonArray arr = payload["rawData"];
+    uint16_t *data = new uint16_t[arr.size()];
+
+    for (int i = 0; i < arr.size(); i++) {
+      data[i] = arr[i].as<uint16_t>();
+    }
+
+    irsend.sendRaw(data, arr.size(), 38);
+
+    delete[] data;
+  }));
+
+  client.on(("sendac/" + MAC_ADDR + "/Daikin").c_str(),toJson([](char* topic, auto payload) {
+
+    IRDaikinESP ac(kIrLed);
+
+    // Set up what we want to send. See ir_Daikin.cpp for all the options.
+    ac.on();
+    ac.setFan(1);
+    ac.setMode(kDaikinCool);
+    ac.setTemp(25);
+    ac.setSwingVertical(false);
+    ac.setSwingHorizontal(false);
+
+    // Set the current time to 1:33PM (13:33)
+    // Time works in minutes past midnight
+    ac.setCurrentTime(13 * 60 + 33);
+    // Turn off about 1 hour later at 2:30PM (14:30)
+    ac.enableOffTimer(14 * 60 + 30);
+
+    // Display what we are going to send.
+    Serial.println(ac.toString());
+
+    // Now send the IR signal.
+  #if SEND_DAIKIN
+    ac.send();
+  #endif  // SEND_DAIKIN
+
+  }));
+
+  client.publish("dev", buf);
   client.on("disconnect", [](char* topic, byte* payload, unsigned int length) {client.disconnect();});
-  client.on("light", toJson([](char* topic, auto payload) {
-    Serial.print("light: ");
-    Serial.println((String)payload["msg"]);
-  }));
-  client.on("sendfan", toJson([](char* topic, auto payload) {
-    irsend.sendSymphony(0xD81, 12, 0);
-  }));
-  client.on("sendspeaker", toJson([](char* topic, auto payload) {
-    irsend.sendNEC(0x1E7040BF, 32, 0);
-  }));
+
   client.subscribe("inTopic");
 
   /**
@@ -122,7 +177,7 @@ void loop() {
       doc["rawData"][i] = rawArr[i];
     }
 
-    if (doc["protocol"]) {
+    if (doc["protocol"] == "NEC") {
       doc["address"] = results.address;
       doc["command"] = results.command;
     }
@@ -133,7 +188,7 @@ void loop() {
     Serial.print("publish(): ");
     Serial.println(client.publish("ir/rcev", irMsg.c_str()));
   }
-  OTAloopHandler();
+  // OTAloopHandler();
 
   /**
    * MQTT
