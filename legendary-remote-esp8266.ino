@@ -21,7 +21,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
 void connectSuccess(uint16_t count) {
   Serial.println("Connected to MQTT-Broker!\nThis is connection nb: ");
   Serial.println(count);
-  client.publish("outTopic", "hello world");
+  client.publish("init ", "esp8266 connected successfully");
 }
 
 void setup() {
@@ -44,6 +44,7 @@ void setup() {
   */
   client.setCallback(callback);
   client.onConnect(connectSuccess);
+  client.setBufferSize(IR_MSG_BUFFER_SIZE);
   client.on("lightOff", [](char* topic, byte* payload, unsigned int length) {digitalWrite(LED_BUILTIN, HIGH);});
   client.on("lightOn", [](char* topic, byte* payload, unsigned int length) {digitalWrite(LED_BUILTIN, LOW);});
   client.on("disconnect", [](char* topic, byte* payload, unsigned int length) {client.disconnect();});
@@ -93,6 +94,7 @@ void loop() {
       Serial.printf(D_STR_TOLERANCE " : %d%%\n", kTolerancePercentage);
     // Display the basic output of what we found.
     Serial.print(resultToHumanReadableBasic(&results));
+
     // Display any extra A/C info if we have it.
     String description = IRAcUtils::resultAcToString(&results);
     if (description.length()) Serial.println(D_STR_MESGDESC ": " + description);
@@ -106,6 +108,30 @@ void loop() {
     Serial.println(resultToSourceCode(&results));
     Serial.println();    // Blank line between entries
     yield();             // Feed the WDT (again)
+
+    String irMsg;
+
+    // should be wrapped into a func inside a library
+    DynamicJsonDocument doc(DOC_BUFFER_LIMIT);
+    
+    doc["protocol"] = typeToString(results.decode_type);
+    doc["code"] = resultToHexidecimal(&results);
+    doc["length"] = results.bits;
+    uint16_t *rawArr = resultToRawArray(&results);
+    for(int i = 0; i < getCorrectedRawLength(&results); i++) {
+      doc["rawData"][i] = rawArr[i];
+    }
+
+    if (doc["protocol"]) {
+      doc["address"] = results.address;
+      doc["command"] = results.command;
+    }
+
+    delete[] rawArr;
+    serializeJson(doc, irMsg);
+    
+    Serial.print("publish(): ");
+    Serial.println(client.publish("ir/rcev", irMsg.c_str()));
   }
   OTAloopHandler();
 

@@ -1,6 +1,6 @@
 #include <ArduinoJson.h>
 
-#define DOC_BUFFER_LIMIT 1024
+#define DOC_BUFFER_LIMIT 2048
 
 typedef std::function<void(char*, uint8_t*, unsigned int)> MQTT_CALLBACK;
 typedef std::function<void(char*, DynamicJsonDocument&)> TO_JSON_CALLBACK;

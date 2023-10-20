@@ -102,6 +102,8 @@ const uint8_t kTolerancePercentage = kTolerance;  // kTolerance is normally 25%
 IRrecv irrecv(kRecvPin, kCaptureBufferSize, kTimeout, true);
 decode_results results;  // Somewhere to store the results
 
+#define IR_MSG_BUFFER_SIZE 2048
+
 void irInit() {
 
   irsend.begin();
