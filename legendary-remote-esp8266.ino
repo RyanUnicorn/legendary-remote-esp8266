@@ -9,6 +9,7 @@
 
 ESPPubSubClientWrapper client(MQTT_SERVER);
 String MAC_ADDR;
+String buf;
 
 void callback(char* topic, byte* payload, unsigned int length) {
   Serial.println(topic);
@@ -47,10 +48,11 @@ void setup() {
    * MQTT
   */
   StaticJsonDocument<256> doc;
+  // DynamicJsonDocument doc(256);
   doc["ID"] = MAC_ADDR;
 
-  char buf[256];
-  serializeJson(doc, buf, 256);
+  serializeJson(doc, buf);
+  serializeJson(doc, Serial);
 
   client.setCallback(callback);
   client.onConnect(connectSuccess);
@@ -65,7 +67,7 @@ void setup() {
     irrecv.disableIRIn();
   });
   client.on("dev/discover", [&](char* topic, byte* payload, unsigned int length) {
-    client.publish("dev", buf);
+    client.publish("dev", buf.c_str());
   });
   
   client.on(("sendraw/" + MAC_ADDR).c_str(), toJson([](char* topic, auto payload) {
@@ -110,7 +112,7 @@ void setup() {
 
   }));
 
-  client.publish("dev", buf);
+  // client.publish("dev", buf.c_str());
   client.on("disconnect", [](char* topic, byte* payload, unsigned int length) {client.disconnect();});
 
   client.subscribe("inTopic");
