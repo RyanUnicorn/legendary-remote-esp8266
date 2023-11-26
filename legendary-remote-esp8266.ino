@@ -7,6 +7,10 @@
 
 #include "config.h"
 
+#define IR_PREFIX "ir"
+#define IR_DUMP   "dump"
+#define IR_RECV   "recv"
+
 ESPPubSubClientWrapper client(MQTT_SERVER);
 String MAC_ADDR;
 String buf;
@@ -29,6 +33,7 @@ void connectSuccess(uint16_t count) {
 void setup() {
   Serial.begin(115200);
   pinMode(LED_BUILTIN, OUTPUT);
+  digitalWrite(LED_BUILTIN, HIGH);
   
   while (!Serial)  // Wait for the serial connection to be establised.
     delay(50);
@@ -60,17 +65,27 @@ void setup() {
   // change the topic to pre defined micro
   client.on("lightOff", [](char* topic, byte* payload, unsigned int length) {digitalWrite(LED_BUILTIN, HIGH);});
   client.on("lightOn", [](char* topic, byte* payload, unsigned int length) {digitalWrite(LED_BUILTIN, LOW);});
-  client.on(("dump/" + MAC_ADDR + "/start").c_str(), [](char* topic, byte* payload, unsigned int length) {
-    irrecv.enableIRIn();
-  });
-  client.on(("dump/" + MAC_ADDR + "/stop").c_str(), [](char* topic, byte* payload, unsigned int length) {
-    irrecv.disableIRIn();
-  });
+
+  /**
+   * Board discover messages
+  */
   client.on("dev/discover", [&](char* topic, byte* payload, unsigned int length) {
     client.publish("dev", buf.c_str());
   });
-  
-  client.on(("sendraw/" + MAC_ADDR).c_str(), toJson([](char* topic, auto payload) {
+
+  /**
+   * IR MQTT messages
+  */
+  // `ir/<boardId>/dump/start` Start IR dump by enable IR signal in.
+  client.on(((String)IR_PREFIX + "/" + MAC_ADDR + "/" + IR_DUMP + "/start").c_str(), [](char* topic, byte* payload, unsigned int length) {
+    irrecv.enableIRIn();
+  });
+  // `ir/<boardId>/dump/stop` Stop IR dump by disable IR signal in.
+  client.on(((String)IR_PREFIX + "/" + MAC_ADDR + "/" + IR_DUMP + "/stop").c_str(), [](char* topic, byte* payload, unsigned int length) {
+    irrecv.disableIRIn();
+  });
+  // `ir/<boardId>/sendraw` Send IR raw date.
+  client.on(((String)IR_PREFIX + "/" + MAC_ADDR + "/sendraw").c_str(), toJson([](char* topic, auto payload) {
 
     JsonArray arr = payload["rawData"];
     uint16_t *data = new uint16_t[arr.size()];
@@ -82,9 +97,11 @@ void setup() {
     irsend.sendRaw(data, arr.size(), 38);
 
     delete[] data;
-  }));
 
-  client.on(("sendac/" + MAC_ADDR + "/Daikin").c_str(),toJson([](char* topic, auto payload) {
+    client.publish(((String)IR_PREFIX + "/" + MAC_ADDR + "/sent").c_str(), ("{\"code\":\"" + (String)payload["code"] + "\"}").c_str());
+  }));
+  // `ir/<boardId>/sendac/<brand>`
+  client.on(((String)IR_PREFIX + "/" + MAC_ADDR + "/sendac" + "/Daikin").c_str(),toJson([](char* topic, auto payload) {
 
     IRDaikinESP ac(kIrLed);
 
@@ -188,7 +205,8 @@ void loop() {
     serializeJson(doc, irMsg);
     
     Serial.print("publish(): ");
-    Serial.println(client.publish("ir/rcev", irMsg.c_str()));
+    // `ir/<boardId>/recv`
+    Serial.println(client.publish(((String)IR_PREFIX + "/" + MAC_ADDR + "/" + IR_RECV).c_str(), irMsg.c_str()));
   }
   // OTAloopHandler();
 
